@@ -18,7 +18,10 @@ import type {
   EmbeddingModel,
   EmbeddingModelInfo,
 } from "../engine/models/index.js";
-import { resolveEmbeddingReference } from "../engine/models/index.js";
+import {
+  isRemoteEmbeddingProvider,
+  resolveEmbeddingReference,
+} from "../engine/models/index.js";
 import type {
   FileScanDiagnostics,
   WorkspaceIndexEmbeddingSchema,
@@ -226,7 +229,7 @@ export class DaemonBackend implements ZvecGrepDaemonBackend {
     let activeRuntime = this.runtimeManager.getByRequestedRoot(requestedRoot);
     if (
       activeRuntime?.embeddingProvider() &&
-      activeRuntime.embeddingProvider() !== "qwen"
+      !isRemoteEmbeddingProvider(activeRuntime.embeddingProvider())
     ) {
       return undefined;
     }
@@ -239,7 +242,7 @@ export class DaemonBackend implements ZvecGrepDaemonBackend {
       const provider =
         activeRuntime?.embeddingProvider() ??
         discoveredInfo.workspaceIndex?.embedding?.provider;
-      if (provider && provider !== "qwen") {
+      if (provider && !isRemoteEmbeddingProvider(provider)) {
         return undefined;
       }
     }
@@ -266,7 +269,11 @@ export class DaemonBackend implements ZvecGrepDaemonBackend {
       }
     }
     const schema = info.workspaceIndex?.embedding;
-    if (!info.indexed || !schema || schema.provider !== "qwen") {
+    if (
+      !info.indexed ||
+      !schema ||
+      !isRemoteEmbeddingProvider(schema.provider)
+    ) {
       return undefined;
     }
     const modelLoadRequest = this.searchModelLoadRequest(info, input);
@@ -1058,11 +1065,15 @@ export class DaemonBackend implements ZvecGrepDaemonBackend {
     authorization?: RemoteEmbeddingOperationPermit;
   }> {
     const knownProvider = runtime.embeddingProvider();
-    if (knownProvider && knownProvider !== "qwen") return { allowed: true };
+    if (knownProvider && !isRemoteEmbeddingProvider(knownProvider)) {
+      return { allowed: true };
+    }
     const root = runtime.canonicalRoot;
     const info = await this.inspectRoot(root, false);
     const schema = info.workspaceIndex?.embedding;
-    if (!schema || schema.provider !== "qwen") return { allowed: true };
+    if (!schema || !isRemoteEmbeddingProvider(schema.provider)) {
+      return { allowed: true };
+    }
     const modelInfo = await this.loadEmbeddingModelInfo(
       this.searchModelLoadRequest(info, {}),
     );

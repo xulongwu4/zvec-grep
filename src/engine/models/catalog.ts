@@ -2,6 +2,27 @@ const DEFAULT_QWEN_TEXT_EMBEDDING_ENDPOINT =
   "https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings";
 const DEFAULT_QWEN3_VL_EMBEDDING_ENDPOINT =
   "https://dashscope.aliyuncs.com/api/v1/services/embeddings/multimodal-embedding/multimodal-embedding";
+export const DEFAULT_GOOGLE_EMBEDDING_API_BASE =
+  "https://generativelanguage.googleapis.com/v1beta";
+
+/**
+ * Providers whose models run outside the local machine. Selecting one sends
+ * query text or workspace content to the provider and therefore requires
+ * credentials plus explicit Remote Embedding authorization.
+ */
+export const REMOTE_EMBEDDING_PROVIDERS = ["qwen", "google"] as const;
+
+export type RemoteEmbeddingProvider =
+  (typeof REMOTE_EMBEDDING_PROVIDERS)[number];
+
+export function isRemoteEmbeddingProvider(
+  provider: string | undefined,
+): provider is RemoteEmbeddingProvider {
+  return (
+    provider !== undefined &&
+    (REMOTE_EMBEDDING_PROVIDERS as readonly string[]).includes(provider)
+  );
+}
 
 export const EMBEDDING_MODEL_CATALOG = {
   "local/embeddinggemma-300m": {
@@ -106,6 +127,39 @@ export const EMBEDDING_MODEL_CATALOG = {
     maxBatchSize: 20,
     maxInputTokens: 32000,
     maxImageBytes: 10 * 1024 * 1024,
+  },
+
+  "google/gemini-embedding-001": {
+    backend: "google",
+    kind: "text",
+    reference: "google/gemini-embedding-001",
+    provider: "google",
+    model: "gemini-embedding-001",
+    // gemini-embedding-001 is a Matryoshka model (128-3072). 768 is one of
+    // the recommended sizes and keeps the index compact; vectors are
+    // normalized client-side because truncated outputs are not unit length.
+    dimension: 768,
+    metric: "cosine",
+    defaultEndpoint: `${DEFAULT_GOOGLE_EMBEDDING_API_BASE}/models/gemini-embedding-001:batchEmbedContents`,
+    maxBatchSize: 100,
+    maxInputTokens: 2048,
+  },
+
+  "google/gemini-embedding-2": {
+    backend: "google",
+    kind: "text",
+    reference: "google/gemini-embedding-2",
+    provider: "google",
+    model: "gemini-embedding-2",
+    // Natively multimodal upstream; zvec-grep currently sends text only.
+    // Matryoshka output (128-3072, recommended 768/1536/3072); 768 keeps the
+    // index compact. Unlike -001, Google already normalizes -2's reduced
+    // outputs; the shared client-side normalization is an idempotent no-op.
+    dimension: 768,
+    metric: "cosine",
+    defaultEndpoint: `${DEFAULT_GOOGLE_EMBEDDING_API_BASE}/models/gemini-embedding-2:batchEmbedContents`,
+    maxBatchSize: 100,
+    maxInputTokens: 8192,
   },
 
   "local/bge-small-en-v1.5": {
@@ -595,6 +649,16 @@ export type QwenTextEmbeddingCatalogEntry = Extract<
 export type QwenMultimodalEmbeddingCatalogEntry = Extract<
   QwenEmbeddingCatalogEntry,
   { kind: "multimodal" }
+>;
+
+export type GoogleEmbeddingCatalogEntry = Extract<
+  EmbeddingCatalogEntry,
+  { backend: "google" }
+>;
+
+export type GoogleTextEmbeddingCatalogEntry = Extract<
+  GoogleEmbeddingCatalogEntry,
+  { kind: "text" }
 >;
 
 export type EmbeddingModelCatalogId = keyof typeof EMBEDDING_MODEL_CATALOG;

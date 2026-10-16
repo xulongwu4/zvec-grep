@@ -20,6 +20,7 @@ import {
   createEmbeddingModel,
   EmbeddingPurpose,
   getEmbeddingModelCatalogEntry,
+  isRemoteEmbeddingProvider,
   normalizeLocalEmbeddingConcurrency,
   resolveEmbeddingReference,
   resolveIndexEmbeddingConcurrencyOverride,
@@ -1035,7 +1036,7 @@ class ZvecGrepService implements ZvecGrep {
           ),
           detail(
             "examples",
-            "local/potion-code-16m-v2, qwen/text-embedding-v4",
+            "local/potion-code-16m-v2, qwen/text-embedding-v4, google/gemini-embedding-001",
           ),
         ]),
       });
@@ -1618,7 +1619,7 @@ function createServiceEmbeddingModel(
   serviceOptions: CreateZvecGrepOptions,
 ): EmbeddingModel {
   const model = createEmbeddingModel(reference, modelOptions);
-  if (model.info.provider !== "qwen") {
+  if (!isRemoteEmbeddingProvider(model.info.provider)) {
     return model;
   }
 

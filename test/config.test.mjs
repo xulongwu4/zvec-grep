@@ -168,6 +168,55 @@ test("embedding runtime resolver preserves every precedence layer", () => {
   );
 });
 
+test("embedding runtime resolver reads provider-specific credential aliases", () => {
+  const google = (environment) =>
+    resolveEmbeddingRuntimeOptions(
+      "google/gemini-embedding-001",
+      {},
+      {},
+      {},
+      environment,
+    );
+  assert.deepEqual(google({ GOOGLE_API_KEY: "google-key" }), {
+    apiKey: "google-key",
+  });
+  assert.deepEqual(
+    google({ GEMINI_API_KEY: "gemini-key", GOOGLE_API_KEY: "google-key" }),
+    { apiKey: "gemini-key" },
+  );
+  assert.deepEqual(
+    google({ ZVEC_GREP_API_KEY: "zg-key", GEMINI_API_KEY: "gemini-key" }),
+    { apiKey: "zg-key" },
+  );
+  // Base-URL endpoints are canonicalized so repeated indexing with the same
+  // --endpoint matches the persisted workspace snapshot.
+  assert.deepEqual(
+    resolveEmbeddingRuntimeOptions(
+      "google/gemini-embedding-2",
+      { endpoint: "https://proxy.test/v1beta/" },
+      {},
+      {},
+      { GEMINI_API_KEY: "k" },
+    ),
+    {
+      apiKey: "k",
+      endpoint:
+        "https://proxy.test/v1beta/models/gemini-embedding-2:batchEmbedContents",
+    },
+  );
+  // Google aliases never leak into other providers.
+  assert.deepEqual(
+    resolveEmbeddingRuntimeOptions(
+      "qwen/text-embedding-v4",
+      {},
+      {},
+      {},
+      { GEMINI_API_KEY: "gemini-key", DASHSCOPE_API_KEY: "dash-key" },
+    ),
+    { apiKey: "dash-key" },
+  );
+});
+
 test("embedding reference resolver prefers the environment over the global default", () => {
   assert.equal(
     resolveEmbeddingReference({

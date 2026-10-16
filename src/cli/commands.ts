@@ -17,7 +17,10 @@ import {
   EngineError,
   type EngineErrorCode,
 } from "../engine/errors.js";
-import { listEmbeddingModels } from "../engine/models/index.js";
+import {
+  isRemoteEmbeddingProvider,
+  listEmbeddingModels,
+} from "../engine/models/index.js";
 import { DaemonClient } from "../client/daemon-client.js";
 import {
   resolveDirectSearchPolicy,
@@ -409,10 +412,9 @@ async function runDirectIndex(
       parsed.options.endpoint,
       parsed.options.rebuild === true,
     );
-    const modelInfo =
-      schema?.provider === "qwen"
-        ? await embeddingModelInfo(schema, serviceOptions, workspaceRuntime)
-        : undefined;
+    const modelInfo = isRemoteEmbeddingProvider(schema?.provider)
+      ? await embeddingModelInfo(schema, serviceOptions, workspaceRuntime)
+      : undefined;
     const plan = modelInfo
       ? await planRemoteIndexAuthorization({
           info: infoBefore,
@@ -727,7 +729,7 @@ async function runDirectQuery(
     const schema = info.workspaceIndex?.embedding;
     const workspaceRuntime = workspaceRuntimeFromInfo(info);
     const modelInfo =
-      !commandOptions.rg && schema?.provider === "qwen"
+      !commandOptions.rg && isRemoteEmbeddingProvider(schema?.provider)
         ? await embeddingModelInfo(
             schema,
             createServiceOptions(commandOptions, info.root),

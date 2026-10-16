@@ -44,6 +44,8 @@ const ENVIRONMENT_VARIABLES = {
     "Local/remote index-build/update embedding concurrency; explicit index CLI option takes precedence",
   DASHSCOPE_API_KEY: "Qwen credential fallback after ZVEC_GREP_API_KEY",
   QWEN_API_KEY: "Qwen credential fallback after DASHSCOPE_API_KEY",
+  GEMINI_API_KEY: "Google credential fallback after ZVEC_GREP_API_KEY",
+  GOOGLE_API_KEY: "Google credential fallback after GEMINI_API_KEY",
   ZVEC_GREP_AUTHORIZATION_KEY_FILE:
     "Workspace grant signing-key file (advanced)",
   ZVEC_GREP_METAL_KEEP_RESIDENCY:
@@ -196,7 +198,7 @@ Index options:
   --mode <direct|server|auto>       Select indexing transport
 
 Embedding options:
-  --embedding <model>               Model such as local/potion-code-16m-v2 or qwen/text-embedding-v4
+  --embedding <model>               Model such as local/potion-code-16m-v2, qwen/text-embedding-v4, or google/gemini-embedding-2
   --api-key <key>                   Embedding provider API key
   --endpoint <url>                  Embedding provider endpoint
   --model-cache <path>              Local model cache directory
@@ -575,6 +577,9 @@ ${formatEnvironmentVariables([
 Qwen credential aliases:
 ${formatEnvironmentVariables(["DASHSCOPE_API_KEY", "QWEN_API_KEY"])}
 
+Google credential aliases:
+${formatEnvironmentVariables(["GEMINI_API_KEY", "GOOGLE_API_KEY"])}
+
 State and authorization:
 ${formatEnvironmentVariables([
   "ZVEC_GREP_HOME",
@@ -607,6 +612,7 @@ Precedence:
   New-index model                  --embedding > ZVEC_GREP_EMBEDDING > Global config > Built-in local
   Client mode                      --mode > ZVEC_GREP_MODE > Global config
   Qwen environment credential      ZVEC_GREP_API_KEY > DASHSCOPE_API_KEY > QWEN_API_KEY
+  Google environment credential    ZVEC_GREP_API_KEY > GEMINI_API_KEY > GOOGLE_API_KEY
 
 Server scope:
   zg --index forwards its ZVEC_GREP_EMBEDDING default to Server and auto modes.

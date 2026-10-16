@@ -631,6 +631,34 @@ for (const [name, context] of [
   });
 }
 
+test("service fails fast on Google's HTTP 400 invalid API key response", async (t) => {
+  const temporaryDirectory = await createTemporaryDirectory(
+    t,
+    "zvec-grep-google-auth-failure-",
+  );
+  const root = join(temporaryDirectory, "repo");
+  await mkdir(root, { recursive: true });
+  await writeFile(join(root, "first.ts"), "export const First = 1;\n");
+  await writeFile(join(root, "second.ts"), "export const Second = 2;\n");
+  // Google rejects bad keys with 400 INVALID_ARGUMENT rather than 401/403.
+  const context =
+    "model=google/gemini-embedding-2 status=400 providerCode=400 providerStatus=INVALID_ARGUMENT providerMessage=API key not valid. Please pass a valid API key.";
+  const model = new SharedFailureEmbeddingModel({
+    provider: "google",
+    code: "ZVEC_GREP.ENGINE.MODELS.GOOGLE_TEXT_EMBEDDING_API_ERROR",
+    context,
+  });
+  const service = await createZvecGrep({ root, embeddingModel: model });
+  t.after(() => service.close());
+
+  await assert.rejects(
+    service.index(),
+    (error) =>
+      error.code === "ZVEC_GREP.ENGINE.MODELS.GOOGLE_TEXT_EMBEDDING_API_ERROR",
+  );
+  assert.equal(model.calls, 1);
+});
+
 test("service stops scheduling multi-file embedding batches after the first fatal rejection", async (t) => {
   const temporaryDirectory = await createTemporaryDirectory(
     t,

@@ -57,85 +57,103 @@ test("Workspace Remote Embedding grants are signed, target-bound, and revocable"
   assert.equal(await store.hasGrant(target), false);
 });
 
-test("remote provider guard fails closed and re-checks Workspace revocation", async (t) => {
-  const temporaryDirectory = await mkdtemp(join(tmpdir(), "zg-auth-guard-"));
-  const root = join(temporaryDirectory, "repo");
-  await mkdir(root);
-  const endpoint = "https://qwen.test/embeddings";
-  const store = new RemoteEmbeddingAuthorizationStore({
-    signingKeyPath: join(temporaryDirectory, "signing.key"),
-  });
-  const manager = new RemoteEmbeddingAuthorizationManager(store);
-  const target = await createRemoteEmbeddingTarget({
-    roots: [root],
+const guardedRemoteProviders = [
+  {
     provider: "qwen",
-    model: "text-embedding-v4",
-    endpoint,
-  });
-  const plan = {
-    operation: "query",
-    target,
-    disclosure: { queryText: true, workspaceContent: "none" },
-    reason: "query",
-    grantPath: store.grantPath(target),
-  };
-  const originalFetch = globalThis.fetch;
-  let fetches = 0;
-  globalThis.fetch = async () => {
-    fetches += 1;
-    return new Response(
-      JSON.stringify({
-        data: [{ index: 0, embedding: new Array(1024).fill(0.01) }],
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
-  };
-  const model = createEmbeddingModelForIdentity(
-    { provider: "qwen", name: "text-embedding-v4" },
-    {
-      apiKey: "test-key",
+    name: "text-embedding-v4",
+    endpoint: "https://qwen.test/embeddings",
+    response: () => ({
+      data: [{ index: 0, embedding: new Array(1024).fill(0.01) }],
+    }),
+  },
+  {
+    provider: "google",
+    name: "gemini-embedding-2",
+    endpoint:
+      "https://google.test/v1beta/models/gemini-embedding-2:batchEmbedContents",
+    response: () => ({ embeddings: [{ values: new Array(768).fill(0.01) }] }),
+  },
+];
+
+for (const remote of guardedRemoteProviders) {
+  test(`${remote.provider} guard fails closed and re-checks Workspace revocation`, async (t) => {
+    const temporaryDirectory = await mkdtemp(join(tmpdir(), "zg-auth-guard-"));
+    const root = join(temporaryDirectory, "repo");
+    await mkdir(root);
+    const endpoint = remote.endpoint;
+    const store = new RemoteEmbeddingAuthorizationStore({
+      signingKeyPath: join(temporaryDirectory, "signing.key"),
+    });
+    const manager = new RemoteEmbeddingAuthorizationManager(store);
+    const target = await createRemoteEmbeddingTarget({
+      roots: [root],
+      provider: remote.provider,
+      model: remote.name,
       endpoint,
-      authorizationSigningKeyPath: join(temporaryDirectory, "signing.key"),
-    },
-  );
-  t.after(async () => {
-    globalThis.fetch = originalFetch;
-    await rm(temporaryDirectory, { recursive: true, force: true });
-  });
+    });
+    const plan = {
+      operation: "query",
+      target,
+      disclosure: { queryText: true, workspaceContent: "none" },
+      reason: "query",
+      grantPath: store.grantPath(target),
+    };
+    const originalFetch = globalThis.fetch;
+    let fetches = 0;
+    globalThis.fetch = async () => {
+      fetches += 1;
+      return new Response(JSON.stringify(remote.response()), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+    const model = createEmbeddingModelForIdentity(
+      { provider: remote.provider, name: remote.name },
+      {
+        apiKey: "test-key",
+        endpoint,
+        authorizationSigningKeyPath: join(temporaryDirectory, "signing.key"),
+      },
+    );
+    t.after(async () => {
+      globalThis.fetch = originalFetch;
+      await rm(temporaryDirectory, { recursive: true, force: true });
+    });
 
-  await assert.rejects(
-    model.embed([{ kind: "text", text: "not authorized" }], {
-      purpose: "query",
-    }),
-    /authorization is required/i,
-  );
-  assert.equal(fetches, 0);
-
-  const once = await manager.grant(plan, "once");
-  assert.equal(await store.hasGrant(target), false);
-  await withRemoteEmbeddingOperationPermit(once, () =>
-    model.embed([{ kind: "text", text: "once" }], { purpose: "query" }),
-  );
-  assert.equal(fetches, 1);
-
-  const workspace = await manager.grant(plan, "workspace");
-  await withRemoteEmbeddingOperationPermit(workspace, () =>
-    model.embed([{ kind: "text", text: "workspace" }], {
-      purpose: "query",
-    }),
-  );
-  assert.equal(fetches, 2);
-  await store.revoke(target);
-  await assert.rejects(
-    withRemoteEmbeddingOperationPermit(workspace, () =>
-      model.embed([{ kind: "text", text: "revoked" }], {
+    await assert.rejects(
+      model.embed([{ kind: "text", text: "not authorized" }], {
         purpose: "query",
       }),
-    ),
-    /authorization is required/i,
-  );
-  assert.equal(fetches, 2);
-});
+      /authorization is required/i,
+    );
+    assert.equal(fetches, 0);
+
+    const once = await manager.grant(plan, "once");
+    assert.equal(await store.hasGrant(target), false);
+    await withRemoteEmbeddingOperationPermit(once, () =>
+      model.embed([{ kind: "text", text: "once" }], { purpose: "query" }),
+    );
+    assert.equal(fetches, 1);
+
+    const workspace = await manager.grant(plan, "workspace");
+    await withRemoteEmbeddingOperationPermit(workspace, () =>
+      model.embed([{ kind: "text", text: "workspace" }], {
+        purpose: "query",
+      }),
+    );
+    assert.equal(fetches, 2);
+    await store.revoke(target);
+    await assert.rejects(
+      withRemoteEmbeddingOperationPermit(workspace, () =>
+        model.embed([{ kind: "text", text: "revoked" }], {
+          purpose: "query",
+        }),
+      ),
+      /authorization is required/i,
+    );
+    assert.equal(fetches, 2);
+  });
+}
 
 test("authorization planner follows merged Query and Index behavior", async (t) => {
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "zg-auth-plan-"));

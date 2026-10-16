@@ -16,6 +16,7 @@ import {
   resolveEmbeddingReference,
 } from "../engine/models/index.js";
 import { readWorkspaceManifest } from "../engine/manifest.js";
+import { normalizeEmbeddingEndpoint } from "../engine/utils/embedding-endpoint.js";
 import {
   findNearestWorkspace,
   workspaceIndexLocation,
@@ -308,11 +309,16 @@ export function assertRequestedEndpointCompatible(
   requestedEndpoint: string | undefined,
   rebuild: boolean,
 ): void {
+  const embedding = info.workspaceIndex?.embedding;
   if (
     rebuild ||
-    !info.workspaceIndex?.embedding ||
+    !embedding ||
     requestedEndpoint === undefined ||
-    workspaceRuntime.endpoint === requestedEndpoint
+    workspaceRuntime.endpoint ===
+      normalizeEmbeddingEndpoint(
+        `${embedding.provider}/${embedding.model}`,
+        requestedEndpoint,
+      )
   ) {
     return;
   }

@@ -6,10 +6,11 @@ import {
   errorDetails,
   isEngineError,
 } from "../../errors.js";
-import type {
-  EmbeddingModel,
-  EmbeddingModelProgress,
-  EmbeddingResult,
+import {
+  isRemoteEmbeddingProvider,
+  type EmbeddingModel,
+  type EmbeddingModelProgress,
+  type EmbeddingResult,
 } from "../../models/index.js";
 import type { WorkspaceIndexStorage } from "../../storage/index.js";
 import type {
@@ -1456,7 +1457,7 @@ function resolveEmbeddingConcurrencyPolicy(
     };
   }
 
-  const remote = model.info.provider === "qwen";
+  const remote = isRemoteEmbeddingProvider(model.info.provider);
   const multimodal = model.info.inputKinds.includes("image");
   const configuredLocalDefault = model.info.defaultConcurrency;
   const localDefault =
@@ -1667,6 +1668,10 @@ function classifyEmbeddingRetry(
       status === 403 ||
       status === 404 ||
       /\b(?:invalid|missing|unauthorized|forbidden)[ _-]?(?:api[ _-]?)?key\b/i.test(
+        text,
+      ) ||
+      // Google returns HTTP 400 "API key not valid" / API_KEY_INVALID.
+      /\bapi[ _-]?key\b.{0,24}\b(?:not valid|invalid)\b|\bAPI_KEY_INVALID\b/i.test(
         text,
       ));
   const permanentRemoteModelFailure =

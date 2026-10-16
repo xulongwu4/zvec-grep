@@ -256,6 +256,8 @@ refresh, authentication, and logs. See [MCP](./03-mcp.md) for the tool contract.
 | `ZVEC_GREP_DEVICE` | Local model device |
 | `DASHSCOPE_API_KEY` | Qwen API-key fallback after `ZVEC_GREP_API_KEY` |
 | `QWEN_API_KEY` | Qwen API-key fallback after `DASHSCOPE_API_KEY` |
+| `GEMINI_API_KEY` | Google API-key fallback after `ZVEC_GREP_API_KEY` |
+| `GOOGLE_API_KEY` | Google API-key fallback after `GEMINI_API_KEY` |
 | `QWEN_HOME` | Qwen Code configuration directory used by `zg --install` |
 | `QODER_CONFIG_DIR` | Qoder CLI configuration directory used by `zg --install` |
 | `QODER_IDE_MCP_PATH` | Full Qoder IDE `mcp.json` path used by `zg --install` |

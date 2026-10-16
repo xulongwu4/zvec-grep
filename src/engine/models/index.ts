@@ -14,7 +14,10 @@ export {
 } from "./local-embedding-parallelism.js";
 export {
   getEmbeddingModelCatalogEntry,
+  isRemoteEmbeddingProvider,
   listEmbeddingModels,
+  REMOTE_EMBEDDING_PROVIDERS,
+  type RemoteEmbeddingProvider,
 } from "./catalog.js";
 export {
   resolveEmbeddingReference,

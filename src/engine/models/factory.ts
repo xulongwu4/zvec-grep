@@ -1,12 +1,14 @@
 import { EngineError } from "../errors.js";
 import {
   getEmbeddingModelCatalogEntry,
+  type GoogleEmbeddingCatalogEntry,
   type QwenEmbeddingCatalogEntry,
 } from "./catalog.js";
 import type {
   CreateEmbeddingModelOptions,
   EmbeddingModel,
 } from "./embeddings.js";
+import { GoogleTextEmbeddingModel } from "./backends/google.js";
 import { LlamaCppEmbeddingModel } from "./backends/llama-cpp.js";
 import { Model2VecEmbeddingModel } from "./backends/model2vec.js";
 import {
@@ -37,6 +39,8 @@ export function createEmbeddingModel(
       return new TransformersJsEmbeddingModel(catalogEntry, options);
     case "qwen":
       return createQwenEmbeddingModel(catalogEntry, options);
+    case "google":
+      return createGoogleEmbeddingModel(catalogEntry, options);
     default:
       return unsupportedCatalogEntry(catalogEntry);
   }
@@ -61,6 +65,14 @@ function createQwenEmbeddingModel(
     default:
       return unsupportedCatalogEntry(entry);
   }
+}
+
+function createGoogleEmbeddingModel(
+  entry: GoogleEmbeddingCatalogEntry,
+  options: CreateEmbeddingModelOptions,
+): EmbeddingModel {
+  // Only text models exist today; add a kind switch alongside multimodal entries.
+  return new GoogleTextEmbeddingModel(entry, options);
 }
 
 function unsupportedCatalogEntry(entry: never): never {

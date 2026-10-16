@@ -42,6 +42,7 @@ default. Select and authorize a remote model explicitly with `zg --index`.
 | A lightweight English model | `local/all-minilm-l6-v2` | Small local model for short English text |
 | Long English documents | `local/gte-modernbert-base` or `local/nomic-embed-text-v1.5` | 8,192-token local context |
 | No local model runtime | `qwen/qwen3.7-text-embedding` | Managed text Embedding API |
+| Google Gemini Embedding API | `google/gemini-embedding-2` | Latest Gemini embedding model, 8,192-token input |
 | Text and image retrieval | `qwen/qwen3-vl-embedding` | Managed multimodal Embedding API |
 
 The best model still depends on the repository and its real queries. Start with
@@ -69,6 +70,8 @@ file.
 | `qwen/text-embedding-v4` | Remote text | 8,192 | 1,024 |
 | `qwen/qwen3.7-text-embedding` | Remote text | 128,000 | 1,024 |
 | `qwen/qwen3-vl-embedding` | Remote multimodal | 32,000 | 2,560 |
+| `google/gemini-embedding-001` | Remote text | 2,048 | 768 |
+| `google/gemini-embedding-2` | Remote text | 8,192 | 768 |
 
 All catalog entries currently use cosine similarity. Exact model revisions are
 pinned by zvec-grep so the same reference resolves consistently for a given
@@ -141,6 +144,8 @@ zg --index \
 
 ## Remote Embedding and authorization
 
+### Qwen
+
 Configure the Qwen provider credential and, optionally, a model endpoint:
 
 ```bash
@@ -164,6 +169,41 @@ slash). For example, `https://example.com/compatible-mode/v1` resolves to
 `https://example.com/compatible-mode/v1/embeddings`. Authorization and index
 metadata use the resolved request URL. Complete endpoints and custom paths are
 preserved; this expansion does not apply to the Qwen VL endpoint.
+
+### Google Gemini
+
+Configure the Google provider credential and select the Gemini model:
+
+```bash
+zg --config provider set google --api-key "$GEMINI_API_KEY"
+zg --config model set google/gemini-embedding-2 --default
+```
+
+`google/gemini-embedding-001` remains available for text-only workloads.
+`gemini-embedding-2` is multimodal upstream, but zvec-grep currently sends
+it text only.
+
+`GEMINI_API_KEY` and `GOOGLE_API_KEY` are accepted as environment fallbacks
+after `ZVEC_GREP_API_KEY`. Requests use the Gemini
+`models/<model>:batchEmbedContents` method and request 768-dimensional
+output. `gemini-embedding-001` does not normalize reduced-dimension outputs,
+so zvec-grep L2-normalizes them before storage; `gemini-embedding-2` already
+returns unit vectors at reduced sizes, and the same client-side step is a
+harmless no-op there.
+
+Query and document inputs are distinguished per model, following Google's
+guidance: `gemini-embedding-001` receives `taskType` `RETRIEVAL_DOCUMENT`
+for indexed content and `RETRIEVAL_QUERY` for queries, while
+`gemini-embedding-2` (which does not accept `taskType`) receives the
+documented prompt prefixes `title: none | text: …` for indexed content and
+`task: code retrieval | query: …` for queries. Requests never follow HTTP
+redirects, so the API key and workspace content are only ever sent to the
+configured endpoint.
+
+`--endpoint` accepts either a complete `:batchEmbedContents` URL or an API
+base ending in a version segment such as
+`https://generativelanguage.googleapis.com/v1beta`, which is expanded to the
+batch method for the selected model. Other values are used verbatim.
 
 If an endpoint returns an empty or non-JSON HTTP error response, the error
 reports the HTTP status. For HTTP 404, check the endpoint and whether the model

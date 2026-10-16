@@ -1,6 +1,7 @@
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { EngineError } from "./errors.js";
+import { normalizeEmbeddingEndpoint } from "./utils/embedding-endpoint.js";
 import { readJsonFileSync, writeJsonFileSync } from "./utils/json.js";
 import { acquireReadWriteLock } from "./utils/lock.js";
 
@@ -92,15 +93,22 @@ export function resolveEmbeddingRuntimeOptions(
   }
   const model = config.models?.[reference];
   const providerConfig = provider ? config.providers?.[provider] : undefined;
-  const endpoint = !local
+  const requestedEndpoint = !local
     ? (explicit.endpoint ??
       workspace.endpoint ??
       model?.endpoint ??
       nonEmptyEnvironmentValue(environment.ZVEC_GREP_ENDPOINT))
     : undefined;
-  if (endpoint !== undefined && !isHttpEndpoint(endpoint)) {
+  if (requestedEndpoint !== undefined && !isHttpEndpoint(requestedEndpoint)) {
     throw invalidRuntime(reference, "endpoint must be a valid HTTP(S) URL");
   }
+  // Canonicalize once so every later comparison against the persisted
+  // workspace endpoint (CLI pre-checks, daemon, search) sees the same value
+  // the model will actually request.
+  const endpoint =
+    requestedEndpoint !== undefined
+      ? normalizeEmbeddingEndpoint(reference, requestedEndpoint)
+      : undefined;
   const device = local
     ? (explicit.device ??
       workspace.device ??
@@ -512,7 +520,13 @@ function environmentApiKey(
           environment.DASHSCOPE_API_KEY,
           environment.QWEN_API_KEY,
         ]
-      : [environment.ZVEC_GREP_API_KEY];
+      : provider === "google"
+        ? [
+            environment.ZVEC_GREP_API_KEY,
+            environment.GEMINI_API_KEY,
+            environment.GOOGLE_API_KEY,
+          ]
+        : [environment.ZVEC_GREP_API_KEY];
   return values.map(nonEmptyEnvironmentValue).find(Boolean);
 }
 
