@@ -12,7 +12,7 @@ use zg_engine::api::{
     info::{InfoOptions, InfoResult},
 };
 
-pub const CURRENT_DAEMON_PROTOCOL_VERSION: u32 = 15;
+pub const CURRENT_DAEMON_PROTOCOL_VERSION: u32 = 16;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct DaemonRequest {
@@ -225,30 +225,20 @@ mod tests {
     }
 
     #[test]
-    fn index_name_round_trips_and_remains_optional() {
+    fn index_round_trips_by_root_without_a_name() {
         use zg_engine::api::index::IndexOptions;
-
         let command = DaemonCommand::Index(IndexOptions {
-            name: Some("search-engine".to_owned()),
             root: Some("/workspace".into()),
             ..IndexOptions::default()
         });
-        let mut encoded = serde_json::to_value(&command).expect("index command should serialize");
-        assert_eq!(encoded["request"]["name"], "search-engine");
+        let mut encoded = serde_json::to_value(&command).expect("serialize command");
+        assert!(encoded["request"].get("name").is_none());
+        assert_eq!(encoded["request"]["root"], "/workspace");
         let decoded: DaemonCommand =
-            serde_json::from_value(encoded.clone()).expect("index command should deserialize");
+            serde_json::from_value(encoded.clone()).expect("deserialize command");
         assert_eq!(decoded, command);
-
-        encoded["request"]
-            .as_object_mut()
-            .expect("index request object")
-            .remove("name");
-        let DaemonCommand::Index(options) =
-            serde_json::from_value(encoded).expect("index name may be omitted")
-        else {
-            panic!("index command");
-        };
-        assert!(options.name.is_none());
+        encoded["request"]["name"] = serde_json::json!("obsolete");
+        assert!(serde_json::from_value::<DaemonCommand>(encoded).is_err());
     }
 
     #[test]
@@ -295,7 +285,6 @@ mod tests {
             index_path: "/workspace/.zvec-grep/storage".into(),
             source: InfoSource::Index,
             workspace_index: Some(WorkspaceIndexInfo {
-                name: "search-engine".to_owned(),
                 path: "/workspace/.zvec-grep".into(),
                 root: "/workspace".into(),
                 scan: ScanRules::default(),
@@ -323,7 +312,8 @@ mod tests {
             encoded["reply"]["compatibility"],
             serde_json::json!({"status": "compatible", "version": 2})
         );
-        assert_eq!(encoded["reply"]["workspace_index"]["name"], "search-engine");
+        assert!(encoded["reply"]["workspace_index"].get("name").is_none());
+        assert_eq!(encoded["reply"]["workspace_index"]["root"], "/workspace");
         assert!(encoded["reply"]["workspace_index"].get("id").is_none());
         assert_eq!(
             encoded["reply"]["workspace_index"]["fts"]["tokenizer"],
